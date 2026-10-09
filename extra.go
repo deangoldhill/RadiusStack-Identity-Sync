@@ -52,8 +52,10 @@ func (a *App) initExtras() error {
 		return err
 	}
 	_, err = a.db.Exec(`CREATE TABLE IF NOT EXISTS radius_source_snapshot (ip TEXT PRIMARY KEY, username TEXT NOT NULL)`)
- if err != nil { return err }
- _, err = a.db.Exec(`CREATE INDEX IF NOT EXISTS stat_events_created ON stat_events(created)`)
+	if err != nil {
+		return err
+	}
+	_, err = a.db.Exec(`CREATE INDEX IF NOT EXISTS stat_events_created ON stat_events(created)`)
 	return err
 }
 
@@ -231,7 +233,7 @@ func validateArchive(v *ConfigArchive) error {
 	}
 	ids := map[int]bool{}
 	for _, f := range v.Firewalls {
-		if f.ID <= 0 || ids[f.ID] || len(f.Name) == 0 || len(f.Name) > 200 || f.Vendor != "checkpoint" || len(f.Address) == 0 || len(f.Address) > 500 || len(f.Secret) == 0 || len(f.Secret) > 16384 {
+		if f.ID <= 0 || ids[f.ID] || len(f.Name) == 0 || len(f.Name) > 200 || !supportedVendor(f.Vendor) || len(f.Address) == 0 || len(f.Address) > 500 || len(f.Secret) == 0 || len(f.Secret) > 16384 {
 			return errors.New("invalid or duplicate firewall")
 		}
 		ids[f.ID] = true
@@ -303,6 +305,15 @@ func (a *App) configImport(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	var ciscoActive int
+	if err := a.db.QueryRow("SELECT COUNT(*) FROM cisco_bindings").Scan(&ciscoActive); err != nil {
+		http.Error(w, "binding state unavailable", 500)
+		return
+	}
+	if ciscoActive != 0 {
+		http.Error(w, "clear Cisco ISE-PIC mappings and disable their source before importing; binding IDs cannot be discarded", 409)
+		return
+	}
 	// End live sessions before replacing administrator records so RADIUS Stop
 	// can read the session's final accounting counters. No network IO in tx.
 	active, err := a.sessionTokens(0)
@@ -319,7 +330,7 @@ func (a *App) configImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	for _, table := range []string{"config", "identities", "radius_source_snapshot", "manual_identities", "firewalls", "web_sessions", "users"} {
+	for _, table := range []string{"config", "identities", "cisco_bindings", "radius_source_snapshot", "manual_identities", "firewalls", "web_sessions", "users"} {
 		if _, err = tx.Exec("DELETE FROM " + table); err != nil {
 			http.Error(w, "import failed", 500)
 			return
@@ -660,7 +671,7 @@ func (a *App) stats(w http.ResponseWriter, r *http.Request) {
 	a.db.QueryRow(`SELECT count(*) FROM manual_identities`).Scan(&manualCount)
 	a.db.QueryRow(`SELECT count(*) FROM identities`).Scan(&trackedCount)
 	w.Header().Set("Cache-Control", "no-store")
-	render(w, extrasStatsT, map[string]any{"Unit": unit, "Units": []string{"second","minute","hour","day","week","month","year"}, "Grouped": grouped, "Buckets": buckets, "Max": maxCount, "Recent": recent, "Firewalls": fwCount, "Manual": manualCount, "Tracked": trackedCount})
+	render(w, extrasStatsT, map[string]any{"Unit": unit, "Units": []string{"second", "minute", "hour", "day", "week", "month", "year"}, "Grouped": grouped, "Buckets": buckets, "Max": maxCount, "Recent": recent, "Firewalls": fwCount, "Manual": manualCount, "Tracked": trackedCount})
 }
 
 const extrasStatsT = `{{define "body"}}<div class="app">{{template "nav" "stats"}}<main class="main">{{template "top" "Statistics"}}<header class="pagehead"><p class="eyebrow">Operational insights</p><h1>Statistics</h1><p>Firewall updates, RadiusStack API activity, synchronization outcomes and unchanged lookups. UTC buckets; data starts from this release.</p></header>
