@@ -1,14 +1,16 @@
-# RadiusStack Identity Sync — staging source
+# RadiusStack Identity Sync
 
-This bundle contains only the Go application source and deployment inputs. It does **not** contain the live database, administrator password, API keys, firewall shared secrets, logs, backups, or test files.
+RadiusStack Identity Sync is a containorised serivice that feeds identities from the RadiusStack active session table, to firewalls for identity awareness.
+It uses the logged in username and Framed-IP-Address attribute to populate the firewall's identity awareness table.
+Supported firewall vendors include Check Point, Palo Alto, Fortinet, Sonicwall, Cisco, Watchguard and Forcepoint.
 
-## Deploy on staging
+## Deployment
+1. clone the repo
+2. edit the .env and specify a password to login to the webui
+3. run 'docker compose up -d --build'
 
-1. Copy `.env.example` to `.env` and set a long, unique `DEFAULT_ADMIN_PASSWORD`. Keep `.env` private (`chmod 600 .env`). These values create the **first** administrator only; later edits do not reset an existing account.
-2. Ensure the external Docker network `radiusstack_radius_net` exists on staging and connects to the intended RadiusStack API/RADIUS services. If staging uses another network, edit the Compose network name and relevant API/RADIUS configuration deliberately before deployment.
-3. Check that TCP port 8111 is available (or change the published port in `compose.yaml`). Run `docker compose config --quiet`, then `docker compose up -d --build`.
-4. The one-shot `data-init` service must exit 0 before the non-root app starts. Verify `docker compose ps --all`, `docker logs identity-sync`, and `http://<staging-host>:8111/healthz`. Log in with the new bootstrap account and check the dashboard.
-
-Persistent configuration lives in the `identity-sync-data` named volume. `docker compose down -v` **deletes** that volume and its application database; ordinary `docker compose down` does not.
-
-JSON configuration exports include secrets and password hashes. Transfer and store them as sensitive files; they are not part of this source bundle.
+## Configuration
+1. login to the webui on http://<dockerhost>:8111
+2. go to the settings tab and specify the RadiusStack URL, API key and tenant ID
+3. Go to the firewalls tab, select the vendor and API details.
+Review the debug log and statistics to troubleshoot.
