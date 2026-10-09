@@ -1,0 +1,47 @@
+services:
+  data-init:
+    image: alpine:3.20
+    user: "0:0"
+    network_mode: none
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    volumes:
+      - identity-sync-data:/data
+    command: ["sh", "-c", "chown 100:101 /data && chmod 0700 /data"]
+
+  identity-sync:
+    build: .
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    container_name: identity-sync
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8111:8080"
+    volumes:
+      - identity-sync-data:/data
+    networks:
+      - radiusstack_radius_net
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  identity-sync-data:
+
+networks:
+  radiusstack_radius_net:
+    external: true
