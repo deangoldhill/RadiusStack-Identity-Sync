@@ -10,7 +10,7 @@ Supported firewall vendors include Check Point, Palo Alto, Fortinet, Sonicwall, 
 3. run 'docker compose up -d --build'
 
 ## Configuration
-1. login to the webui on http://<dockerhost>:8111
+1. login to the webui on http://[dockerhost]:8111
 2. go to the settings tab and specify the RadiusStack URL, API key and tenant ID
 3. Go to the firewalls tab, select the vendor and API details.
 Review the debug log and statistics to troubleshoot.
